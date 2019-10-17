@@ -49,30 +49,32 @@ const endResponse = function*(next) {
 
 router.get("/test", async ctx => {
   console.log("Testing...");
-  const [err, output] = await to(
-    critical.generate({
-      //base: "test/",
-      html: "<html></html>",
-      //src: "html.html",
-      folder: "",
-      //html: html,
-      width: 1300,
-      height: 900,
-      //minify: true,
-      ignore: ["@font-face", /url\(/],
-      penthouse: {
-        puppeteer: {
-          args: ["no-sandbox", "disable-setuid-sandbox"]
-        }
-      }
-    })
+
+  const [errFetch, html] = await to(
+    fetch("https://salterstest.servercrew.net/" + "?critical_css").then(res =>
+      res.buffer()
+    )
   );
 
-  if (err) {
-    ctx.body = err;
+  if (errFetch) {
+    ctx.body = "error";
+    console.log("Error", errFetch);
     return;
   }
-  ctx.body = "OK";
+
+  const output = await critical.generate({
+    base: "test/",
+    src: "index.html",
+    //folder: "https://salters.com.au/",
+    //html: html.toString(),
+    width: 1300,
+    height: 900,
+    inline: true,
+    ignore: ["@font-face", /url\(/]
+  });
+
+  console.log("output", output.uncritical);
+  ctx.body = "ok";
 });
 
 router.post("/critical", async (ctx, next) => {
@@ -101,14 +103,10 @@ router.post("/critical", async (ctx, next) => {
 
   const [err, output] = await to(
     critical.generate({
-      //base: "test/",
-      //html: html,
-      //src: "html.html",
-      folder: url,
-      html: html,
+      html: html.toString(),
       width: 1300,
       height: 900,
-      //minify: true,
+      minify: true,
       ignore: ["@font-face", /url\(/],
       penthouse: {
         puppeteer: {
@@ -135,8 +133,11 @@ router.post("/critical", async (ctx, next) => {
     {
       method: "POST",
       body: JSON.stringify({
-        css: output,
-        size: getBytes(output),
+        css: {
+          critical: output.css,
+          uncritical: output.uncritical
+        },
+        //size: getBytes(output),
         url: url,
         key: serverKey
       })
