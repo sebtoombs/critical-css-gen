@@ -16,6 +16,9 @@ const app = new Koa();
 
 const serverKey = "dbe30568-cae1-4169-a5d2-2a724a6725b1";
 
+console.log("Starting server");
+console.log("Env: ", process.env.NODE_ENV);
+
 //Override listen
 app.server = http.createServer(app.callback());
 app.listen = (...args) => {
@@ -74,7 +77,7 @@ router.post("/critical", async ctx => {
 });
 
 app.use(router.routes()).use(router.allowedMethods());
-app.listen(8000);
+app.listen(80);
 
 function to(promise) {
   return promise
