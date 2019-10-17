@@ -14,6 +14,8 @@ const fetch = require("node-fetch");
 
 const app = new Koa();
 
+const serverKey = "dbe30568-cae1-4169-a5d2-2a724a6725b1";
+
 //Override listen
 app.server = http.createServer(app.callback());
 app.listen = (...args) => {
@@ -27,7 +29,12 @@ app.use(bodyParser());
 const router = new Router();
 
 router.post("/critical", async ctx => {
-  const { url } = ctx.request.body;
+  const { url, key } = ctx.request.body;
+  if (key !== serverKey) {
+    ctx.status = 403;
+    ctx.body = "Incorrect key";
+    return;
+  }
   console.log("URL: ", url);
 
   const [errFetch, html] = await to(fetch(url).then(res => res.buffer()));
@@ -60,7 +67,10 @@ router.post("/critical", async ctx => {
   }
 
   console.log("CSS Generated");
-  ctx.body = output;
+  ctx.body = {
+    size: getBytes(output),
+    css: output
+  };
 });
 
 app.use(router.routes()).use(router.allowedMethods());
@@ -72,4 +82,8 @@ function to(promise) {
       return [null, data];
     })
     .catch(err => [err]);
+}
+
+function getBytes(string) {
+  return Buffer.byteLength(string, "utf8");
 }
