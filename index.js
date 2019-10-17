@@ -34,21 +34,68 @@ app.use(bodyParser());
 
 const router = new Router();
 
-router.post("/critical", async ctx => {
-  const { url, key } = ctx.request.body;
+const endResponse = function*(next) {
+  const res = this.res;
+  const body = this.body;
+
+  if (res && body) {
+    body = JSON.stringify(body);
+    this.length = Buffer.byteLength(body);
+    res.end(body);
+  }
+
+  yield* next;
+};
+
+router.get("/test", async ctx => {
+  console.log("Testing...");
+  const [err, output] = await to(
+    critical.generate({
+      //base: "test/",
+      html: "<html></html>",
+      //src: "html.html",
+      folder: "",
+      //html: html,
+      width: 1300,
+      height: 900,
+      //minify: true,
+      ignore: ["@font-face", /url\(/],
+      penthouse: {
+        puppeteer: {
+          args: ["no-sandbox", "disable-setuid-sandbox"]
+        }
+      }
+    })
+  );
+
+  if (err) {
+    ctx.body = err;
+    return;
+  }
+  ctx.body = "OK";
+});
+
+router.post("/critical", async (ctx, next) => {
+  const { url, key, webhook } = ctx.request.body;
   if (key !== serverKey) {
     ctx.status = 403;
     ctx.body = "Incorrect key";
     return;
   }
   console.log("URL: ", url);
+  ctx.body = "OK";
 
-  const [errFetch, html] = await to(fetch(url).then(res => res.buffer()));
+  ctx.res.end();
+  //return next();
+
+  const [errFetch, html] = await to(
+    fetch(url + "?critical_css").then(res => res.buffer())
+  );
 
   if (errFetch) {
     console.log("Error fetching HTML", errFetch);
-    ctx.status = 500;
-    ctx.body = errFetch;
+    //ctx.status = 500;
+    //ctx.body = errFetch;
     return;
   }
 
@@ -61,22 +108,50 @@ router.post("/critical", async ctx => {
       html: html,
       width: 1300,
       height: 900,
-      minify: true
+      //minify: true,
+      ignore: ["@font-face", /url\(/],
+      penthouse: {
+        puppeteer: {
+          args: ["no-sandbox", "disable-setuid-sandbox"]
+        }
+      }
     })
   );
 
   if (err) {
     console.log("Error generating critical CSS", err);
-    ctx.status = 500;
-    ctx.body = err;
+    //ctx.status = 500;
+    //ctx.body = err;
     return;
   }
 
   console.log("CSS Generated");
-  ctx.body = {
+
+  console.log("Webhook URL: ", webhook);
+  //webhook
+  const webhookResponse = await fetch(
+    //"http://localhost/~sebtoombs/wptest/?critical_css",
+    webhook,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        css: output,
+        size: getBytes(output),
+        url: url,
+        key: serverKey
+      })
+    }
+  ).then(res => res.text());
+
+  if (webhookResponse !== "OK") {
+    console.log("Webhook failure");
+  } else {
+    console.log("Webhook posted", webhookResponse);
+  }
+  /*ctx.body = {
     size: getBytes(output),
     css: output
-  };
+  };*/
 });
 
 app.use(router.routes()).use(router.allowedMethods());
