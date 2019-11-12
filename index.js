@@ -14,8 +14,6 @@ const fetch = require("node-fetch");
 
 const app = new Koa();
 
-const serverKey = "dbe30568-cae1-4169-a5d2-2a724a6725b1";
-
 const PORT = process.env.PORT || 8000;
 
 console.log("Starting server");
@@ -55,9 +53,26 @@ router.post("/revoke", async ctx => {
   ctx.body = { success: true };
 });
 
-router.post("/validate", async ctx => {
+const validateKey = key => {
   const uuidAPIKey = require("uuid-apikey");
+  if (!uuidAPIKey.isAPIKey(key)) {
+    console.log("Malformed API Key");
+    return [false, "Malformed API Key"];
+  }
 
+  //TODO database with valid keys
+  const valid_keys = ["0XFCS70-33MMHP4-M13Q0TJ-TJ3M99S"];
+
+  //TODO replace with actual lookup
+  if (valid_keys.indexOf(key) === -1) {
+    console.log("Invalid API Key");
+    return [false, "Invalid API Key"];
+  }
+
+  return [true];
+};
+
+router.post("/validate", async ctx => {
   console.log("Validating...");
 
   if (!ctx.request.body.key) {
@@ -70,27 +85,15 @@ router.post("/validate", async ctx => {
     return;
   }
 
-  if (!uuidAPIKey.isAPIKey(ctx.request.body.key)) {
+  const keyValidationResponse = validateKey(ctx.request.body.key);
+  //TODO store validation in database with URL
+
+  if (!keyValidationResponse[0]) {
     ctx.status = 400;
     ctx.body = {
       success: false,
-      message: "Malformed API Key"
+      message: keyValidationResponse[1]
     };
-    console.log("Malformed API Key");
-    return;
-  }
-
-  //TODO database with valid keys
-  const valid_keys = ["0XFCS70-33MMHP4-M13Q0TJ-TJ3M99S"];
-
-  //TODO replace with actual lookup
-  if (valid_keys.indexOf(ctx.request.body.key) === -1) {
-    ctx.status = 400;
-    ctx.body = {
-      success: false,
-      message: "Invalid API Key"
-    };
-    console.log("Invalid API Key");
     return;
   }
 
@@ -105,46 +108,18 @@ router.get("/api_key", ctx => {
   ctx.body = { key: key.apiKey };
 });
 
-router.get("/test", async ctx => {
-  console.log("Testing...");
-
-  const [errFetch, html] = await to(
-    fetch("https://salterstest.servercrew.net/" + "?critical_css").then(res =>
-      res.buffer()
-    )
-  );
-
-  if (errFetch) {
-    ctx.body = "error";
-    console.log("Error", errFetch);
-    return;
-  }
-
-  const output = await critical.generate({
-    base: "test/",
-    src: "index.html",
-    //folder: "https://salters.com.au/",
-    //html: html.toString(),
-    width: 1300,
-    height: 900,
-    inline: true,
-    ignore: ["@font-face", /url\(/],
-    penthouse: {
-      puppeteer: {
-        args: ["no-sandbox", "disable-setuid-sandbox"]
-      }
-    }
-  });
-
-  console.log("output", output.uncritical);
-  ctx.body = "ok";
-});
-
 router.post("/critical", async (ctx, next) => {
   const { url, key, webhook } = ctx.request.body;
-  if (key !== serverKey) {
+
+  console.log("Critical Request");
+
+  const keyValidationResponse = validateKey(key);
+  if (!keyValidationResponse[0]) {
     ctx.status = 403;
-    ctx.body = "Incorrect key";
+    ctx.body = {
+      success: false,
+      message: keyValidationResponse[1]
+    };
     return;
   }
   console.log("URL: ", url);
@@ -202,7 +177,7 @@ router.post("/critical", async (ctx, next) => {
         },
         //size: getBytes(output),
         url: url,
-        key: serverKey
+        key: key
       })
     }
   ).then(res => res.text());
