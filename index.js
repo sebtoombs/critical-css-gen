@@ -34,18 +34,76 @@ app.use(bodyParser());
 
 const router = new Router();
 
-const endResponse = function*(next) {
-  const res = this.res;
-  const body = this.body;
+router.get("/ping", ctx => {
+  ctx.body = "pong";
+});
 
-  if (res && body) {
-    body = JSON.stringify(body);
-    this.length = Buffer.byteLength(body);
-    res.end(body);
+router.post("/revoke", async ctx => {
+  if (!ctx.request.body.key) {
+    ctx.status = 400;
+    ctx.body = {
+      success: false,
+      message: "Missing API Key"
+    };
+    console.log("Missing API Key");
+    return;
   }
 
-  yield* next;
-};
+  const key = ctx.request.body.key;
+
+  console.log("Key revoked", key);
+  ctx.body = { success: true };
+});
+
+router.post("/validate", async ctx => {
+  const uuidAPIKey = require("uuid-apikey");
+
+  console.log("Validating...");
+
+  if (!ctx.request.body.key) {
+    ctx.status = 400;
+    ctx.body = {
+      success: false,
+      message: "Missing API Key"
+    };
+    console.log("Missing API Key");
+    return;
+  }
+
+  if (!uuidAPIKey.isAPIKey(ctx.request.body.key)) {
+    ctx.status = 400;
+    ctx.body = {
+      success: false,
+      message: "Malformed API Key"
+    };
+    console.log("Malformed API Key");
+    return;
+  }
+
+  //TODO database with valid keys
+  const valid_keys = ["0XFCS70-33MMHP4-M13Q0TJ-TJ3M99S"];
+
+  //TODO replace with actual lookup
+  if (valid_keys.indexOf(ctx.request.body.key) === -1) {
+    ctx.status = 400;
+    ctx.body = {
+      success: false,
+      message: "Invalid API Key"
+    };
+    console.log("Invalid API Key");
+    return;
+  }
+
+  console.log("Key Validated");
+  ctx.body = { success: true };
+});
+
+router.get("/api_key", ctx => {
+  const uuidAPIKey = require("uuid-apikey");
+  const key = uuidAPIKey.create();
+  console.log("Created API Key");
+  ctx.body = { key: key.apiKey };
+});
 
 router.get("/test", async ctx => {
   console.log("Testing...");
@@ -70,7 +128,12 @@ router.get("/test", async ctx => {
     width: 1300,
     height: 900,
     inline: true,
-    ignore: ["@font-face", /url\(/]
+    ignore: ["@font-face", /url\(/],
+    penthouse: {
+      puppeteer: {
+        args: ["no-sandbox", "disable-setuid-sandbox"]
+      }
+    }
   });
 
   console.log("output", output.uncritical);
