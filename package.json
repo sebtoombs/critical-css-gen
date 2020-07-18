@@ -9,7 +9,7 @@
     "critical": "^2.0.0-22",
     "koa": "^2.10.0",
     "koa-bodyparser": "^4.2.1",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.19",
     "node-fetch": "^2.6.0",
     "uuid-apikey": "^1.4.4"
   },
